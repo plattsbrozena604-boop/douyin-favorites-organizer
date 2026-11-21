@@ -1,11 +1,11 @@
 ---
 name: douyin-favorites-organizer
-description: Collect a user's own Douyin favorites through the logged-in desktop web interface, normalize the metadata, and use DeepSeek to classify, summarize, deduplicate, and export a personal knowledge base. Use for organizing Douyin favorites, not for bulk scraping public accounts or bypassing access controls.
+description: Read and analyze a user's own Douyin favorites, including downloaded metadata, transcripts, and available visual evidence; use DeepSeek to separate study from entertainment, assign folders, summarize, deduplicate, and export a reviewable organization plan. Use for organizing Douyin favorites, not public-account scraping or access-control bypasses.
 ---
 
 # Douyin Favorites Organizer
 
-Turn the user's own, visible Douyin favorites into a resumable local dataset and an organized knowledge base.
+Turn the user's own favorites into a resumable local dataset, evidence-based analyses, and a reviewable folder plan.
 
 ## Guardrails
 
@@ -13,19 +13,19 @@ Turn the user's own, visible Douyin favorites into a resumable local dataset and
 - Treat likes, favorites, viewing history, usernames, and captions as personal data. Keep raw exports local unless the user explicitly chooses another destination.
 - Never place cookies, session tokens, browser profiles, or `DEEPSEEK_API_KEY` in generated files, logs, prompts, commits, or screenshots.
 - Use conservative pacing. Stop and hand control to the user if Douyin requests verification or shows a CAPTCHA.
-- Do not download videos unless the user specifically asks and has the right to do so. Prefer metadata, visible captions, links, and user-provided transcripts.
+- Download only the user's own accessible favorites and only when analysis requires it. Never redistribute downloaded media.
+- Classification and local export are reversible. Creating folders or moving favorites in Douyin is a separate mutation: show the plan first and obtain the user's confirmation immediately before applying it.
 
 ## Workflow
 
-1. Confirm the desired scope: all visible favorites or a bounded subset, and the preferred export (`Markdown`, `CSV`, or `JSONL`). If unspecified, collect up to 50 new items and produce Markdown plus JSONL.
-2. Create or reuse `data/favorites.jsonl`. Read [references/data-schema.md](references/data-schema.md) before collecting or importing data.
-3. Open Douyin in the user's existing browser session. Prefer `agent-desktop` when available and follow its desktop/platform rules. Observe the page before acting and verify each navigation or collection action.
-4. Ask the user to complete login or verification themselves when needed. Never request their password, cookie, or one-time code in chat.
-5. Visit the user's favorites page. For each visible item, record only fields observable in the UI. Use the canonical share URL when available. Append one valid JSON object per line as soon as an item is collected.
-6. Deduplicate by `aweme_id` when present, otherwise by normalized `url`. Keep the earliest `collected_at` and fill missing fields from the newer record.
-7. Run `python scripts/organize_favorites.py data/favorites.jsonl --output-dir output`. The script reads `DEEPSEEK_API_KEY` from the environment and resumes from `output/organized.jsonl`.
-8. Review `output/failures.jsonl`. Do not silently discard failures.
-9. Report the number collected, organized, skipped, and failed; link the generated files. Mention any fields that could not be observed rather than inventing them.
+1. Determine whether the task is collection, analysis, planning, or an explicitly confirmed write-back. If scope is unspecified, process all accessible favorites and emit Markdown plus JSONL.
+2. Read [references/acquisition.md](references/acquisition.md) before installing or running a collector. Prefer `JoeanAmier/TikTokDownloader` for favorite acquisition and `Evil0ctal/Douyin_TikTok_Download_API` or local `faster-whisper` for speech-to-text. Pin the observed revision in the run report; do not blindly execute unreviewed setup scripts.
+3. Ask the user to complete login or verification themselves. Never request or expose passwords, cookies, browser profiles, or one-time codes in chat.
+4. Import collector output with `python scripts/import_downloads.py <download-root> --output data/favorites.jsonl`. Read [references/data-schema.md](references/data-schema.md) for the evidence model.
+5. For items lacking meaningful text, obtain a transcript. Sample frames/OCR only when audio and metadata are insufficient; record every evidence source. A model may analyze supplied frames, but must not claim to have watched portions it did not inspect.
+6. Run `python scripts/organize_favorites.py data/favorites.jsonl --output-dir output`. It reads `DEEPSEEK_API_KEY` from the environment and resumes from `output/organized.jsonl`.
+7. Review `output/failures.jsonl`, all `limited` records, and borderline `study`/`entertainment` decisions. Do not silently discard failures.
+8. Present `output/folder-plan.md` and counts before any write-back. Apply folder creation/moves only after explicit confirmation, using the logged-in UI and verifying each material action.
 
 ## Collection Notes
 
@@ -37,6 +37,6 @@ Turn the user's own, visible Douyin favorites into a resumable local dataset and
 
 ## DeepSeek Processing
 
-The helper sends one record per request so failures are isolated and progress is durable. It requests JSON output containing a concise Chinese summary, categories, tags, actionable notes, and a quality flag. Use `--dry-run` to validate input without making API calls.
+The helper sends one record per request so failures are isolated and progress is durable. It requires a `content_type` of `study`, `entertainment`, or `mixed`, a stable primary category, a suggested folder, a concise Chinese summary, tags, actionable notes, confidence, and an evidence-based quality flag. Use `--dry-run` to validate input without making API calls.
 
 For custom schemas or downstream imports, preserve the raw record and add derived fields under `analysis` instead of overwriting source data.

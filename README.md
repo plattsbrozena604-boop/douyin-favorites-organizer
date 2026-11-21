@@ -1,10 +1,14 @@
 # Douyin Favorites Organizer Skill
 
-一个用于整理个人抖音收藏的 Codex Skill：通过已登录的抖音网页会话采集可见元数据，再调用 DeepSeek 进行中文摘要、分类、标签和行动项提取。
+一个采用“成熟采集器 + 视频解析/转写 + DeepSeek 分类 + 确认后回写”架构的 Codex Skill。它会读取用户自己的抖音收藏，根据元数据、字幕、语音转写及可用画面证据区分学习与娱乐，先生成可审核的收藏夹方案，再进行任何账号修改。
+
+推荐使用 [JoeanAmier/TikTokDownloader](https://github.com/JoeanAmier/TikTokDownloader) 采集收藏，使用 [Evil0ctal/Douyin_TikTok_Download_API](https://github.com/Evil0ctal/Douyin_TikTok_Download_API) 或本地 `faster-whisper` 解析和转写。仓库不内置这些依赖；使用前应检查并固定具体版本。
 
 ## 功能
 
-- 通过桌面浏览器整理用户自己的抖音收藏
+- 兼容下载器元数据与转写结果，统一导入 JSONL
+- 明确区分学习、娱乐和混合内容，并建议二级收藏夹
+- 先输出收藏夹预览方案，确认后才允许回写
 - JSONL 增量保存，可中断后继续
 - DeepSeek JSON 输出，逐条处理并记录失败项
 - 导出结构化 JSONL 和 Markdown 知识库

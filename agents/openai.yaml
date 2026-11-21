@@ -1,7 +1,7 @@
 interface:
   display_name: "抖音收藏整理器"
-  short_description: "采集抖音收藏并用 DeepSeek 分类、摘要和导出"
-  default_prompt: "使用 $douyin-favorites-organizer 整理我的抖音收藏并生成结构化知识库。"
+  short_description: "解析抖音收藏视频，区分学习与娱乐并规划收藏夹"
+  default_prompt: "使用 $douyin-favorites-organizer 读取并解析我的抖音收藏，先生成学习/娱乐分类与收藏夹预览方案。"
 
 policy:
   allow_implicit_invocation: true

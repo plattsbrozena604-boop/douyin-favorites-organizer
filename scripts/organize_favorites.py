@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 
 API_URL = "https://api.deepseek.com/chat/completions"
-SYSTEM_PROMPT = """你是个人知识库整理助手。请根据用户提供的抖音收藏记录输出一个 JSON 对象，不要输出 Markdown。字段必须为：summary（简洁中文摘要字符串）、categories（1到3个中文分类字符串数组）、tags（2到8个中文标签字符串数组）、action_items（可执行事项字符串数组，没有则为空数组）、quality（full 或 limited）、reason（信息不足原因，否则为空字符串）。不要声称看过未提供的视频内容；只有链接或文本过少时必须设为 limited。"""
+SYSTEM_PROMPT = """你是个人知识库整理助手。只依据提供的标题、字幕、转写和视觉证据分类，不要假装看过未提供的视频。输出一个 JSON 对象，不要输出 Markdown。字段必须为：summary（简洁中文摘要）、content_type（study、entertainment、mixed 三选一）、primary_category（稳定的中文分类，例如知识学习/编程技术、知识学习/语言、娱乐/搞笑、娱乐/影视、生活/美食）、suggested_folder（必须以学习·、娱乐·或混合·开头）、categories（1到3个中文分类数组）、tags（2到8个中文标签数组）、action_items（数组）、confidence（0到1）、quality（full 或 limited）、reason（信息不足原因，否则为空字符串）。教程、课程、技能、科普和可执行知识优先判为 study；纯搞笑、剧情、音乐、影视剪辑、游戏观赏优先判为 entertainment；两者同等重要才用 mixed。证据不足或分类依赖未提供的画面时必须设为 limited。"""
 
 
 def read_jsonl(path: Path) -> Iterable[tuple[int, dict[str, Any]]]:
@@ -93,11 +93,15 @@ def call_deepseek(record: dict[str, Any], api_key: str, model: str, timeout: int
     if not isinstance(content, str) or not content.strip():
         raise ValueError("DeepSeek returned empty content")
     analysis = json.loads(content)
-    required = {"summary", "categories", "tags", "action_items", "quality", "reason"}
+    required = {"summary", "content_type", "primary_category", "suggested_folder", "categories", "tags", "action_items", "confidence", "quality", "reason"}
     if not isinstance(analysis, dict) or not required.issubset(analysis):
         raise ValueError("DeepSeek response does not match the expected schema")
     if analysis["quality"] not in {"full", "limited"}:
         raise ValueError("DeepSeek response has invalid quality")
+    if analysis["content_type"] not in {"study", "entertainment", "mixed"}:
+        raise ValueError("DeepSeek response has invalid content_type")
+    if not isinstance(analysis["confidence"], (int, float)) or not 0 <= analysis["confidence"] <= 1:
+        raise ValueError("DeepSeek response has invalid confidence")
     return analysis
 
 
@@ -111,6 +115,8 @@ def write_markdown(path: Path, records: list[dict[str, Any]]) -> None:
             f"- 链接：{record.get('url', '')}",
             f"- 作者：{record.get('author') or '未知'}",
             f"- 分类：{', '.join(analysis.get('categories', []))}",
+            f"- 类型：{analysis.get('content_type', '')}",
+            f"- 建议收藏夹：{analysis.get('suggested_folder', '')}",
             f"- 标签：{', '.join(analysis.get('tags', []))}",
             f"- 摘要：{analysis.get('summary', '')}",
         ])
@@ -119,6 +125,22 @@ def write_markdown(path: Path, records: list[dict[str, Any]]) -> None:
             lines.append("- 行动：" + "；".join(actions))
         if analysis.get("quality") == "limited":
             lines.append("- 信息质量：有限（" + str(analysis.get("reason") or "源文本不足") + "）")
+        lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_folder_plan(path: Path, records: list[dict[str, Any]]) -> None:
+    folders: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        folder = str(record.get("analysis", {}).get("suggested_folder") or "待人工确认")
+        folders.setdefault(folder, []).append(record)
+    lines = ["# 抖音收藏夹整理方案", "", "> 这是预览方案；确认前不要修改抖音收藏夹。", ""]
+    for folder in sorted(folders):
+        lines.extend([f"## {folder}（{len(folders[folder])}）", ""])
+        for record in folders[folder]:
+            analysis = record.get("analysis", {})
+            title = record.get("title") or analysis.get("summary") or record.get("url")
+            lines.append(f"- [{title}]({record.get('url', '')}) — {analysis.get('summary', '')}（置信度 {analysis.get('confidence', 0):.0%}）")
         lines.append("")
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -185,6 +207,7 @@ def main() -> int:
 
     organized = [record for _, record in read_jsonl(organized_path)] if organized_path.exists() else []
     write_markdown(args.output_dir / "knowledge-base.md", organized)
+    write_folder_plan(args.output_dir / "folder-plan.md", organized)
     print(f"Organized: {succeeded}; skipped: {skipped}; failed: {failed}; total output: {len(organized)}")
     return 1 if failed else 0
 
